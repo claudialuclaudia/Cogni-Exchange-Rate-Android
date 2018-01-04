@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Cogni</string>
+    <string-array name="spinner_list_item_array">
+        <item>Mexico/U.S.</item>
+        <item>Canada/U.S.</item>
+        <item>China/U.S.</item>
+    </string-array>
+</resources>

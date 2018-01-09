@@ -1,59 +1,109 @@
 package cogninow.com.cogni;
 
-import android.graphics.PointF;
+import android.content.Context;
+import android.os.Bundle;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.Spinner;
+import android.widget.TextView;
 
-import com.squareup.picasso.Picasso;
+import com.jjoe64.graphview.GraphView;
+import com.jjoe64.graphview.helper.StaticLabelsFormatter;
+import com.jjoe64.graphview.series.DataPoint;
+import com.jjoe64.graphview.series.LineGraphSeries;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
-    float[] lastEvent = null;
-    float d = 0f;
-    float newRot = 0f;
-    private boolean isZoomAndRotate;
-    private boolean isOutSide;
-    private static final int NONE = 0;
-    private static final int DRAG = 1;
-    private static final int ZOOM = 2;
-    private int mode = NONE;
-    private PointF start = new PointF();
-    private PointF mid = new PointF();
-    float oldDist = 1f;
-    ImageView imageView;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-//        setTheme(R.style.AppTheme);
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        TextView text = (TextView) findViewById(R.id.text);
+
+        try {
+            JSONObject obj = new JSONObject(loadJSONFromAsset());
+            JSONArray m_jArry = obj.getJSONArray("EXMXUS");
+
+            GraphView graph = (GraphView) findViewById(R.id.graph);
+            DataPoint[] dp = new DataPoint[m_jArry.length()];
+
+            double maxEx=0;
+            String maxDate="";
+            double minEx=Double.MAX_VALUE;
+            String minDate="";
+
+            for(int i = 0 ; i < m_jArry.length() ; i++){
+                JSONObject jo_inside = m_jArry.getJSONObject(i);
+                String DATE_value = jo_inside.getString("DATE");
+                String EX_value = jo_inside.getString("EXMXUS");
+                double ex = Double.parseDouble(EX_value);
+                dp[i]=new DataPoint(i, ex);
+
+                if (ex > maxEx){
+                    maxEx = ex;
+                    maxDate = DATE_value;
+                }
+                if (ex < minEx) {
+                    minEx = ex;
+                    minDate = DATE_value;
+                }
+
+                text.setText("The Current (" + DATE_value + ") MX/US Exchange Rate is: " + EX_value
+                + "\nThe Highest MX/US Exchange Rate over the past 24 years was: " + maxEx +
+                        " (" + maxDate + ") " +
+                        "\nThe Lowest MX/US Exchange Rate over the past 24 years was: " + minEx +
+                " (" + minDate + ") ");
+            }
+
+            LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dp);
+            graph.addSeries(series);
+
+            StaticLabelsFormatter staticLabelsFormatter = new StaticLabelsFormatter(graph);
+            staticLabelsFormatter.setHorizontalLabels(new String[] {"1994", "2000", "2006", "2012", "2018"});
+            graph.getGridLabelRenderer().setLabelFormatter(staticLabelsFormatter);
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
         Toolbar myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
         setSupportActionBar(myToolbar);
+    }
 
-        imageView = (ImageView) findViewById(R.id.exRateGraph);
-        Picasso.with(this).load("https://fred.stlouisfed.org/graph/fredgraph.png?g=hkD6").into(imageView);
-        imageView.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                ImageView view = (ImageView) v;
-                view.bringToFront();
-                viewTransformation(view, event);
-                return true;
-            }
-        });
+    public String loadJSONFromAsset() {
+        String json = null;
+        try {
+            InputStream is = this.getAssets().open("EXMXUS.json");
+            int size = is.available();
+            byte[] buffer = new byte[size];
+            is.read(buffer);
+            is.close();
+            json = new String(buffer, "UTF-8");
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return null;
+        }
+        return json;
     }
 
     @Override
@@ -73,11 +123,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parentView, View selectedItemView, int position, long id) {
                 if (position == 0) {
-                    Picasso.with(MainActivity.this).load("https://fred.stlouisfed.org/graph/fredgraph.png?g=hkD6").into(imageView);
                 } else if (position == 1) {
-                    Picasso.with(MainActivity.this).load("https://fred.stlouisfed.org/graph/fredgraph.png?g=hkGv").into(imageView);
                 } else {
-                    Picasso.with(MainActivity.this).load("https://fred.stlouisfed.org/graph/fredgraph.png?g=hkGI").into(imageView);
                 }
             }
 
@@ -89,72 +136,4 @@ public class MainActivity extends AppCompatActivity {
 
         return true;
     }
-
-    private void viewTransformation(View view, MotionEvent event) {
-        switch (event.getAction() & MotionEvent.ACTION_MASK) {
-            case MotionEvent.ACTION_DOWN:
-                start.set(event.getX(), event.getY());
-                isOutSide = false;
-                mode = DRAG;
-                lastEvent = null;
-                break;
-            case MotionEvent.ACTION_POINTER_DOWN:
-                oldDist = spacing(event);
-                if (oldDist > 10f) {
-                    midPoint(mid, event);
-                    mode = ZOOM;
-                }
-
-                lastEvent = new float[4];
-                lastEvent[0] = event.getX(0);
-                lastEvent[1] = event.getX(1);
-                lastEvent[2] = event.getY(0);
-                lastEvent[3] = event.getY(1);
-                break;
-            case MotionEvent.ACTION_UP:
-                isZoomAndRotate = false;
-                if (mode == DRAG) {
-                    float x = event.getX();
-                    float y = event.getY();
-                }
-            case MotionEvent.ACTION_OUTSIDE:
-                isOutSide = true;
-                mode = NONE;
-                lastEvent = null;
-            case MotionEvent.ACTION_POINTER_UP:
-                mode = NONE;
-                lastEvent = null;
-                break;
-            case MotionEvent.ACTION_MOVE:
-                if (!isOutSide) {
-                    if (mode == DRAG) {
-                        isZoomAndRotate = false;
-                        view.setTranslationX((event.getX() - start.x) + view.getTranslationX());
-                        view.setTranslationY((event.getY() - start.y) + view.getTranslationY());
-                    }
-                    if (mode == ZOOM && event.getPointerCount() == 2) {
-                        float newDist1 = spacing(event);
-                        if (newDist1 > 10f) {
-                            float scale = newDist1 / oldDist * view.getScaleX();
-                            view.setScaleX(scale);
-                            view.setScaleY(scale);
-                        }
-                    }
-                }
-                break;
-        }
-    }
-
-    private float spacing(MotionEvent event) {
-        float x = event.getX(0) - event.getX(1);
-        float y = event.getY(0) - event.getY(1);
-        return (int) Math.sqrt(x * x + y * y);
-    }
-
-    private void midPoint(PointF point, MotionEvent event) {
-        float x = event.getX(0) + event.getX(1);
-        float y = event.getY(0) + event.getY(1);
-        point.set(x / 2, y / 2);
-    }
-
 }

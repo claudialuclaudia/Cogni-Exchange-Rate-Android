@@ -1,17 +1,14 @@
 package cogninow.com.cogni;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.ListView;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -27,14 +24,19 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
+import java.util.Currency;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
     TextView title;
     TextView text;
     GraphView graph;
+    List<CurrencyModel> currencies = SampleCurrencies.currencies;
+    List<String> spinnerArray;
+    List<CurrencyModel> first;
+    List<CurrencyModel> second;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +49,23 @@ public class MainActivity extends AppCompatActivity {
 
         Toolbar myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
         setSupportActionBar(myToolbar);
+
+        spinnerArray = new ArrayList<>();
+        first = new ArrayList<>();
+        second = new ArrayList<>();
+        String addition, addition2;
+        for (int i = 0; i<currencies.size()-1; i++){
+            for (int j=1; j<currencies.size(); j++){
+                addition = currencies.get(i).getAbbrev() + "/" + currencies.get(j).getAbbrev();
+                addition2 =  currencies.get(j).getAbbrev() + "/" + currencies.get(i).getAbbrev();
+                spinnerArray.add(addition);
+                spinnerArray.add(addition2);
+                first.add(currencies.get(i));
+                first.add(currencies.get(j));
+                second.add(currencies.get(j));
+                second.add(currencies.get(i));
+            }
+        }
     }
 
     public String loadJSONFromAsset(String filename) {
@@ -72,203 +91,78 @@ public class MainActivity extends AppCompatActivity {
 
         MenuItem item = menu.findItem(R.id.spinner);
         Spinner spinner = (Spinner) MenuItemCompat.getActionView(item);
+        spinner.setAdapter(new ArrayAdapter<String>(this,
+                android.R.layout.simple_spinner_item, spinnerArray));
 
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                R.array.spinner_list_item_array, R.layout.spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+//        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+//                R.array.spinner_list_item_array, R.layout.spinner_item);
+//        ArrayAdapter<CharSequence> adapter;
+//        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 
-        spinner.setAdapter(adapter);
+//        spinner.setAdapter(adapter);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parentView, View selectedItemView, int position, long id) {
-
-                if (position == 0) {
-                    title.setText("Mexican New Pesos to One U.S. Dollar");
-                    try {
-                        JSONObject obj = new JSONObject(loadJSONFromAsset("EXMXUS.json"));
-                        JSONArray m_jArry = obj.getJSONArray("EXMXUS");
-                        DataPoint[] dp = new DataPoint[m_jArry.length()];
-
-                        double maxEx=0;
-                        String maxDate="";
-                        double minEx=Double.MAX_VALUE;
-                        String minDate="";
-
-                        for(int i = 0 ; i < m_jArry.length() ; i++){
-                            JSONObject jo_inside = m_jArry.getJSONObject(i);
-                            String DATE_value = jo_inside.getString("DATE");
-                            String EX_value = jo_inside.getString("EXMXUS");
-                            double ex = Double.parseDouble(EX_value);
-                            dp[i]=new DataPoint(i, ex);
-
-                            if (ex > maxEx){
-                                maxEx = ex;
-                                maxDate = DATE_value;
-                            }
-                            if (ex < minEx) {
-                                minEx = ex;
-                                minDate = DATE_value;
-                            }
-
-                            text.setText("The Current (" + DATE_value + ") MX/US Exchange Rate is: " + EX_value
-                                    + "\nThe Highest MX/US Exchange Rate over the past 24 years was: " + maxEx +
-                                    " (" + maxDate + ") " +
-                                    "\nThe Lowest MX/US Exchange Rate over the past 24 years was: " + minEx +
-                                    " (" + minDate + ") ");
+                for (int i =0; i<spinnerArray.size();i++){
+                    if (position == i){
+                        title.setText(first.get(i).getFullName() + " to One " + second.get(i).getFullName());
+                        String filename;
+                        if (first.get(i).getAbbrev().charAt(0) < second.get(i).getAbbrev().charAt(0)){
+                            filename = "EX" + first.get(i).getAbbrev() + second.get(i).getAbbrev();
+                        } else {
+                            filename = "EX" + second.get(i).getAbbrev() + first.get(i).getAbbrev();
                         }
+                        try {
+                            JSONObject obj = new JSONObject(loadJSONFromAsset(filename + ".json"));
+                            JSONArray m_jArry = obj.getJSONArray(filename);
+                            DataPoint[] dp = new DataPoint[m_jArry.length()];
 
-                        LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dp);
-                        graph.removeAllSeries();
-                        graph.addSeries(series);
+                            double maxEx=0;
+                            String maxDate="";
+                            double minEx=Double.MAX_VALUE;
+                            String minDate="";
+//
+                            for(int j = 0 ; j < m_jArry.length() ; j++) {
+                                JSONObject jo_inside = m_jArry.getJSONObject(j);
+                                String DATE_value = jo_inside.getString("DATE");
+                                String EXString = "EX" + first.get(i).getAbbrev() + second.get(i).getAbbrev();
+                                String EX_value = jo_inside.getString(EXString);
+                                double ex = Double.parseDouble(EX_value);
+                                dp[j] = new DataPoint(j, ex);
 
-                        StaticLabelsFormatter staticLabelsFormatter = new StaticLabelsFormatter(graph);
-                        staticLabelsFormatter.setHorizontalLabels(new String[] {"1994", "2000", "2006", "2012", "2018"});
-                        graph.getGridLabelRenderer().setLabelFormatter(staticLabelsFormatter);
+                                if (ex > maxEx) {
+                                    maxEx = ex;
+                                    maxDate = DATE_value;
+                                }
+                                if (ex < minEx) {
+                                    minEx = ex;
+                                    minDate = DATE_value;
+                                }
 
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                } else if (position == 1) {
-                    title.setText("U.S. Dollar to One Mexican New Pesos");
-                    try {
-                        JSONObject obj = new JSONObject(loadJSONFromAsset("EXMXUS.json"));
-                        JSONArray m_jArry = obj.getJSONArray("EXMXUS");
-                        DataPoint[] dp = new DataPoint[m_jArry.length()];
-
-                        double maxEx=0;
-                        String maxDate="";
-                        double minEx=Double.MAX_VALUE;
-                        String minDate="";
-
-                        for(int i = 0 ; i < m_jArry.length() ; i++){
-                            JSONObject jo_inside = m_jArry.getJSONObject(i);
-                            String DATE_value = jo_inside.getString("DATE");
-                            String EX_value = jo_inside.getString("EXUSMX");
-                            double ex = Double.parseDouble(EX_value);
-                            dp[i]=new DataPoint(i, ex);
-
-                            if (ex > maxEx){
-                                maxEx = ex;
-                                maxDate = DATE_value;
-                            }
-                            if (ex < minEx) {
-                                minEx = ex;
-                                minDate = DATE_value;
+                                text.setText("The Current (" + DATE_value + ")" + spinnerArray.get(i)
+                                        + " Exchange Rate is: " + EX_value
+                                        + "\nThe Highest " + spinnerArray.get(i) +
+                                        " Exchange Rate over the past years was: " + maxEx +
+                                        " (" + maxDate + ") " +
+                                        "\nThe Lowest " + spinnerArray.get(i) +
+                                        " Exchange Rate over the past years was: " + minEx +
+                                        " (" + minDate + ") ");
                             }
 
-                            text.setText("The Current (" + DATE_value + ") US/MX Exchange Rate is: " + EX_value
-                                    + "\nThe Highest US/MX Exchange Rate over the past 24 years was: " + maxEx +
-                                    " (" + maxDate + ") " +
-                                    "\nThe Lowest US/MX Exchange Rate over the past 24 years was: " + minEx +
-                                    " (" + minDate + ") ");
+                                LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dp);
+                                graph.removeAllSeries();
+                                graph.addSeries(series);
+
+                                StaticLabelsFormatter staticLabelsFormatter = new StaticLabelsFormatter(graph);
+                                staticLabelsFormatter.setHorizontalLabels(new String[] {"1994", "2000", "2006", "2012", "2018"});
+                                graph.getGridLabelRenderer().setLabelFormatter(staticLabelsFormatter);
+//
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
                         }
-
-                        LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dp);
-                        graph.removeAllSeries();
-                        graph.addSeries(series);
-
-                        StaticLabelsFormatter staticLabelsFormatter = new StaticLabelsFormatter(graph);
-                        staticLabelsFormatter.setHorizontalLabels(new String[] {"1994", "2000", "2006", "2012", "2018"});
-                        graph.getGridLabelRenderer().setLabelFormatter(staticLabelsFormatter);
-
-                    } catch (JSONException e) {
-                        e.printStackTrace();
                     }
-                } else if (position == 2) {
-                    title.setText("Euro to One U.S.Dollar");
-                    try {
-                        JSONObject obj = new JSONObject(loadJSONFromAsset("EXEUUS.json"));
-                        JSONArray m_jArry = obj.getJSONArray("EXEUUS");
-                        DataPoint[] dp = new DataPoint[m_jArry.length()];
-
-                        double maxEx = 0;
-                        String maxDate = "";
-                        double minEx = Double.MAX_VALUE;
-                        String minDate = "";
-
-                        for (int i = 0; i < m_jArry.length(); i++) {
-                            JSONObject jo_inside = m_jArry.getJSONObject(i);
-                            String DATE_value = jo_inside.getString("DATE");
-                            String EX_value = jo_inside.getString("EXEUUS");
-                            double ex = Double.parseDouble(EX_value);
-                            dp[i] = new DataPoint(i, ex);
-
-                            if (ex > maxEx) {
-                                maxEx = ex;
-                                maxDate = DATE_value;
-                            }
-                            if (ex < minEx) {
-                                minEx = ex;
-                                minDate = DATE_value;
-                            }
-
-                            text.setText("The Current (" + DATE_value + ") EU/US Exchange Rate is: " + EX_value
-                                    + "\nThe Highest EU/US Exchange Rate over the past 24 years was: " + maxEx +
-                                    " (" + maxDate + ") " +
-                                    "\nThe Lowest EU/US Exchange Rate over the past 24 years was: " + minEx +
-                                    " (" + minDate + ") ");
-                        }
-
-                        LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dp);
-                        graph.removeAllSeries();
-                        graph.addSeries(series);
-
-                        StaticLabelsFormatter staticLabelsFormatter = new StaticLabelsFormatter(graph);
-                        staticLabelsFormatter.setHorizontalLabels(new String[]{"1999", "2018"});
-                        graph.getGridLabelRenderer().setLabelFormatter(staticLabelsFormatter);
-
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                } else if (position == 3) {
-                    title.setText("U.S.Dollar to One E.U.");
-                    try {
-                        JSONObject obj = new JSONObject(loadJSONFromAsset("EXEUUS.json"));
-                        JSONArray m_jArry = obj.getJSONArray("EXEUUS");
-                        DataPoint[] dp = new DataPoint[m_jArry.length()];
-
-                        double maxEx = 0;
-                        String maxDate = "";
-                        double minEx = Double.MAX_VALUE;
-                        String minDate = "";
-
-                        for (int i = 0; i < m_jArry.length(); i++) {
-                            JSONObject jo_inside = m_jArry.getJSONObject(i);
-                            String DATE_value = jo_inside.getString("DATE");
-                            String EX_value = jo_inside.getString("EXUSEU");
-                            double ex = Double.parseDouble(EX_value);
-                            dp[i] = new DataPoint(i, ex);
-
-                            if (ex > maxEx) {
-                                maxEx = ex;
-                                maxDate = DATE_value;
-                            }
-                            if (ex < minEx) {
-                                minEx = ex;
-                                minDate = DATE_value;
-                            }
-
-                            text.setText("The Current (" + DATE_value + ") US/EU Exchange Rate is: " + EX_value
-                                    + "\nThe Highest US/EU Exchange Rate over the past 24 years was: " + maxEx +
-                                    " (" + maxDate + ") " +
-                                    "\nThe Lowest US/EU Exchange Rate over the past 24 years was: " + minEx +
-                                    " (" + minDate + ") ");
-                        }
-
-                        LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dp);
-                        graph.removeAllSeries();
-                        graph.addSeries(series);
-
-                        StaticLabelsFormatter staticLabelsFormatter = new StaticLabelsFormatter(graph);
-                        staticLabelsFormatter.setHorizontalLabels(new String[]{"1999", "2018"});
-                        graph.getGridLabelRenderer().setLabelFormatter(staticLabelsFormatter);
-
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                } else {
                 }
-            }
 
             @Override
             public void onNothingSelected(AdapterView<?> parentView) {
